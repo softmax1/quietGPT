@@ -18,5 +18,9 @@ def softmax1(x, dim=None):
 ```
 
 # to train
+## using the regular softmax function
+`./train_regular_softmax.sh`
 
+## using quiet attention
+`./train_softmax1.sh`
 
