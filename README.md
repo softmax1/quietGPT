@@ -24,3 +24,7 @@ def softmax1(x, dim=None):
 ## using quiet attention
 `./train_softmax1.sh`
 
+# to do
+1. Investigate the effects of shifting/not shifting the zeros in softmax1 implementation Refer to [Issue #1](https://github.com/softmax1/quietGPT/issues/1)
+2. Evaluate the perplexity scores of the model with and without quiet attention
+3. Evaluate the kurtosis of the activations in addition to the kurtosis of the weights 
