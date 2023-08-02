@@ -14,6 +14,7 @@ The following Quiet Attention, or Softmax1 function is implemented in code below
 To achieve numerical stability in the softmax1 activations, the input vector is shifted by the maximum value. Mathematically, this will result in the following formula to implement.
 ```math
 (softmax_one(x))_i = exp(x_i - max(x_i)) / (1 + \sum_{j=1}^n(exp(x_j)))
+al;hf
 ```
 ```
 def softmax1(x, dim=-1):
