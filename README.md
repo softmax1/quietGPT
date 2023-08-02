@@ -10,11 +10,17 @@ The following Quiet Attention, or Softmax1 function is implemented in code below
 ```math
 (softmax_one(x))_i = exp(x_i) / (1 + sum(exp(x_j) for all j))
 ```
+## Note on implementation
+To achieve numerical stability in the softmax1 activations, the input vector is shifted by the maximum value. Mathematically, this will result in the following formula to implement.
+```math
+(softmax_one(x))_i = exp(x_i - max(x_i)) / (1 + \sum_{j=1}^n(exp(x_j)))
 ```
-def softmax1(x, dim=None):
-    x = x - x.max(dim=dim, keepdim=True).values
+```
+def softmax1(x, dim=-1):
+    shift = x.max(dim=dim, keepdim=True).values
+    x = x- shift
     exp_x = torch.exp(x)
-    return exp_x / (1 + exp_x.sum(dim=dim, keepdim=True))
+    return exp_x / (torch.exp(-shift) + exp_x.sum(dim=dim, keepdim=True))
 ```
 
 # to train
