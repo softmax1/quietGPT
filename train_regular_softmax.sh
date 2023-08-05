@@ -1,6 +1,6 @@
 python train.py \
 config/train_shakespeare_char_regular_softmax.py \
---device=mps \
+--device=cuda \
 --compile=False \
 --eval_iters=20 \
 --log_interval=1 \
@@ -12,5 +12,5 @@ config/train_shakespeare_char_regular_softmax.py \
 --max_iters=2000 \
 --lr_decay_iters=2000 \
 --dropout=0.0 \
---wandb_log=True \
+--wandb_log=False \
 --use_softmax1=False
