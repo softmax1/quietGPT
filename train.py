@@ -248,7 +248,6 @@ t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
 running_mfu = -1.0
-kurtosis_data = {"loss": 0}
 while True:
 
     # determine and set the learning rate for this iteration
@@ -262,8 +261,6 @@ while True:
 
         # calculate kurtosis
         for name, param in model.named_parameters():
-            if name not in kurtosis_data.keys():
-                kurtosis_data[name] = []
             mean = param.data.mean()
             diffs = param.data - mean
             var = torch.mean(torch.pow(diffs, 2.0))
@@ -272,9 +269,7 @@ while True:
             skews = torch.mean(torch.pow(zscores, 3.0))
             kurtosis = torch.mean(torch.pow(zscores, 4.0)) - 3.0
             if wandb_log:
-                wandb.log({name: kurtosis.item()})
-            kurtosis_data[name].append(kurtosis)
-        
+                wandb.log({name: kurtosis.item()})        
 
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         if wandb_log:
@@ -345,11 +340,6 @@ while True:
     # termination conditions
     if iter_num > max_iters:
         break
-    
-    if model_args['use_softmax1']:
-        torch.save(kurtosis_data, "kurtosis_softmax1_with_shift.pt")
-    else:
-        torch.save(kurtosis_data, "kurtosis_reg_softmax.pt")
 
 if ddp:
     destroy_process_group()

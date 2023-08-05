@@ -101,11 +101,11 @@ sum(softmax1(inp))
 Output >>> tensor(0.3348)
 ```
 # to train
-## using the regular softmax function
-`./train_regular_softmax.sh`
-
-## using quiet attention
-`./train_softmax1.sh`
+edit the bash script `run_training.sh`, then
+```
+chmod +x run_training.sh
+./run_training.sh
+```
 
 # to do
 1. Evaluate the perplexity scores of the model with and without quiet attention
