@@ -214,14 +214,16 @@ def estimate_loss():
     model.eval()
     for split in ['train', 'val']:
         losses = torch.zeros(eval_iters)
+        activation_kurtoses = {'train': [], 'val': []}
         for k in range(eval_iters):
             X, Y = get_batch(split)
             with ctx:
-                logits, loss = model(X, Y)
+                logits, loss, att_kurtosis = model(X, Y)
+            activation_kurtoses[split].append(att_kurtosis)
             losses[k] = loss.item()
         out[split] = losses.mean()
     model.train()
-    return out
+    return out, activation_kurtoses
 
 # learning rate decay scheduler (cosine with warmup)
 def get_lr(it):
@@ -248,6 +250,7 @@ t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
 running_mfu = -1.0
+
 while True:
 
     # determine and set the learning rate for this iteration
@@ -257,7 +260,9 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
-        losses = estimate_loss()
+        print(iter_num)
+        losses, activation_kurtosis = estimate_loss()
+        print(activation_kurtosis)
 
         # calculate kurtosis
         for name, param in model.named_parameters():
@@ -306,7 +311,7 @@ while True:
             # looking at the source of that context manager, it just toggles this variable
             model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
         with ctx:
-            logits, loss = model(X, Y)
+            logits, loss, activation_kurtosis = model(X, Y)
             loss = loss / gradient_accumulation_steps # scale the loss to account for gradient accumulation
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         X, Y = get_batch('train')

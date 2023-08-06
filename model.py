@@ -13,6 +13,16 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+def compute_kurtosis(param):
+    mean = param.data.mean()
+    diffs = param.data - mean
+    var = torch.mean(torch.pow(diffs, 2.0))
+    std = torch.pow(var, 0.5)
+    zscores = diffs / std
+    skews = torch.mean(torch.pow(zscores, 3.0))
+    kurtosis = torch.mean(torch.pow(zscores, 4.0)) - 3.0
+    return kurtosis
+
 def softmax1(x, dim=-1):
     shift = x.max(dim=dim, keepdim=True).values
     exp_x = torch.exp(x-shift)
@@ -82,13 +92,14 @@ class CausalSelfAttention(nn.Module):
                 att = softmax1(att, dim=-1)
             else:
                 att = F.softmax(att, dim=-1)
+            att_kurtosis = compute_kurtosis(att)
             att = self.attn_dropout(att)
             y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
         y = self.resid_dropout(self.c_proj(y))
-        return y
+        return y, att_kurtosis
 
 class MLP(nn.Module):
 
@@ -115,9 +126,12 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+        x_1 = self.ln_1(x)
+        x_1, att_kurtosis = self.attn(x_1)
+        x = x + x_1
+        # x, att_kurtosis = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
-        return x
+        return x, att_kurtosis
 
 @dataclass
 class GPTConfig:
@@ -192,8 +206,10 @@ class GPT(nn.Module):
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        for block in self.transformer.h:
-            x = block(x)
+        att_kurtoses = {}
+        for i, block in enumerate(self.transformer.h):
+            x, att_kurtosis = block(x)
+            att_kurtoses[i] = att_kurtosis
         x = self.transformer.ln_f(x)
 
         if targets is not None:
@@ -205,7 +221,7 @@ class GPT(nn.Module):
             logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
             loss = None
 
-        return logits, loss
+        return logits, loss, att_kurtoses
 
     def crop_block_size(self, block_size):
         # model surgery to decrease the block size if necessary
