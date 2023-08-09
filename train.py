@@ -221,6 +221,7 @@ def estimate_loss():
                 logits, loss, att_kurtosis = model(X, Y)
             activation_kurtoses[split].append(att_kurtosis)
             losses[k] = loss.item()
+        activation_kurtoses[split] = sum(activation_kurtoses[split]) / len(activation_kurtoses[split])
         out[split] = losses.mean()
     model.train()
     return out, activation_kurtoses
@@ -260,9 +261,7 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
-        print(iter_num)
         losses, activation_kurtosis = estimate_loss()
-        print(activation_kurtosis)
 
         # calculate kurtosis
         for name, param in model.named_parameters():
@@ -284,6 +283,8 @@ while True:
                 "val/loss": losses['val'],
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
+                "train_activation_kurtosis": activation_kurtosis["train"],
+                "val_activation_kurtosis": activation_kurtosis["val"]
             })
         if losses['val'] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses['val']
@@ -311,7 +312,7 @@ while True:
             # looking at the source of that context manager, it just toggles this variable
             model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
         with ctx:
-            logits, loss, activation_kurtosis = model(X, Y)
+            logits, loss, _ = model(X, Y)
             loss = loss / gradient_accumulation_steps # scale the loss to account for gradient accumulation
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         X, Y = get_batch('train')

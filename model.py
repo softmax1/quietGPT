@@ -206,10 +206,11 @@ class GPT(nn.Module):
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        att_kurtoses = {}
+        att_kurtoses = 0
         for i, block in enumerate(self.transformer.h):
             x, att_kurtosis = block(x)
-            att_kurtoses[i] = att_kurtosis
+            att_kurtoses += att_kurtosis
+        att_kurtoses = att_kurtoses / len(self.transformer.h)
         x = self.transformer.ln_f(x)
 
         if targets is not None:
