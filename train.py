@@ -215,16 +215,19 @@ def estimate_loss():
     for split in ['train', 'val']:
         losses = torch.zeros(eval_iters)
         activation_kurtoses = {'train': [], 'val': []}
+        perplexity = {'train': [], 'val': []}
         for k in range(eval_iters):
             X, Y = get_batch(split)
             with ctx:
-                logits, loss, att_kurtosis = model(X, Y)
+                logits, loss, att_kurtosis, ppl = model(X, Y)
             activation_kurtoses[split].append(att_kurtosis)
+            perplexity[split].append(ppl)
             losses[k] = loss.item()
         activation_kurtoses[split] = sum(activation_kurtoses[split]) / len(activation_kurtoses[split])
+        perplexity[split] = sum(perplexity[split]) / len(perplexity[split])
         out[split] = losses.mean()
     model.train()
-    return out, activation_kurtoses
+    return out, activation_kurtoses, perplexity
 
 # learning rate decay scheduler (cosine with warmup)
 def get_lr(it):
@@ -261,7 +264,7 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
-        losses, activation_kurtosis = estimate_loss()
+        losses, activation_kurtosis, perplexity = estimate_loss()
 
         # calculate kurtosis
         for name, param in model.named_parameters():
@@ -284,7 +287,9 @@ while True:
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
                 "train_activation_kurtosis": activation_kurtosis["train"],
-                "val_activation_kurtosis": activation_kurtosis["val"]
+                "val_activation_kurtosis": activation_kurtosis["val"],
+                "train_ppl": perplexity["train"],
+                "val_ppl": perplexity["val"]
             })
         if losses['val'] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses['val']
@@ -312,7 +317,7 @@ while True:
             # looking at the source of that context manager, it just toggles this variable
             model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
         with ctx:
-            logits, loss, _ = model(X, Y)
+            logits, loss, _, _ = model(X, Y)
             loss = loss / gradient_accumulation_steps # scale the loss to account for gradient accumulation
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         X, Y = get_batch('train')
